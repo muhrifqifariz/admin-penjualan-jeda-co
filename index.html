@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jeda Admin</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#A67C00">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-title" content="Jeda Admin">
+<style>
+  :root{
+    --paper:#F6F3EC; --paper-2:#EFEADF; --ink:#22261F; --ink-soft:#5B5F52;
+    --emerald:#1F6F50; --emerald-dark:#154D37; --gold:#A67C00; --gold-dark:#7A5B00;
+    --line:#D9D3C3; --danger:#B4432E; --blue-bg:#DCEFFB;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:"Segoe UI", Roboto, system-ui, sans-serif;
+    min-height:100vh; padding:0 0 40px;
+  }
+  header{
+    background:var(--gold); color:#fff; padding:22px 20px 16px;
+    border-bottom-left-radius:22px; border-bottom-right-radius:22px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.12);
+  }
+  header .brand{ display:flex; align-items:center; gap:12px; }
+  header .brand img{ height:40px; width:auto; }
+  header .eyebrow{ font-size:12px; letter-spacing:.14em; text-transform:uppercase; opacity:.8; margin:0 0 4px; }
+  header h1{ margin:0; font-family:Georgia, serif; font-size:22px; font-weight:700; }
+
+  main{ max-width:520px; margin:0 auto; padding:18px 16px 0; }
+  .screen{ display:none; }
+  .screen.active{ display:block; }
+
+  .card{
+    background:#fff; border-radius:16px; padding:16px; margin-bottom:14px;
+    border:1px solid var(--line); box-shadow:0 2px 10px rgba(34,38,31,0.06);
+  }
+  label{ display:block; font-size:12.5px; color:var(--ink-soft); margin:12px 0 6px; }
+  label:first-child{ margin-top:0; }
+  input, select{
+    width:100%; padding:11px 12px; font-size:15.5px;
+    border:1.5px solid var(--line); border-radius:10px;
+    background:var(--paper); color:var(--ink); font-family:inherit;
+  }
+  input:focus, select:focus{ outline:none; border-color:var(--gold); background:#fff; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+  button.primary{
+    width:100%; padding:15px; background:var(--gold); color:#fff; border:none;
+    border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; margin-top:6px;
+  }
+  button.primary:disabled{ opacity:.6; }
+  button.secondary{
+    width:100%; padding:12px; background:transparent; color:var(--gold-dark);
+    border:1.5px solid var(--gold); border-radius:12px; font-size:14px; font-weight:600;
+    cursor:pointer; margin-top:10px;
+  }
+  button.danger{
+    width:100%; padding:12px; background:transparent; color:var(--danger);
+    border:1.5px solid var(--danger); border-radius:12px; font-size:14px; font-weight:600;
+    cursor:pointer; margin-top:10px;
+  }
+  .status{ text-align:center; font-size:13px; min-height:18px; margin:10px 0; color:var(--ink-soft); }
+  .status.ok{ color:var(--emerald-dark); font-weight:600; }
+  .status.err{ color:var(--danger); font-weight:600; }
+
+  /* PIN gate */
+  #pinGate{
+    max-width:340px; margin:60px auto 0; text-align:center;
+  }
+  #pinGate .lock{
+    width:60px; height:60px; border-radius:50%; background:var(--gold); color:#fff;
+    font-size:28px; display:flex; align-items:center; justify-content:center; margin:0 auto 16px;
+  }
+  #pinGate h2{ font-family:Georgia, serif; margin:0 0 6px; color:var(--gold-dark); }
+  #pinGate p{ font-size:13px; color:var(--ink-soft); margin:0 0 16px; }
+  #pinInput{ text-align:center; font-size:22px; letter-spacing:.3em; }
+
+  /* Submission list */
+  .sub-item{
+    background:#fff; border:1px solid var(--line); border-radius:14px;
+    padding:14px 16px; margin-bottom:10px; cursor:pointer;
+  }
+  .sub-item .top{ display:flex; justify-content:space-between; align-items:baseline; }
+  .sub-item .rider{ font-weight:700; font-size:15px; }
+  .sub-item .tanggal{ font-size:12px; color:var(--ink-soft); }
+  .sub-item .bottom{
+    display:flex; justify-content:space-between; margin-top:8px; font-size:13px;
+  }
+  .sub-item .label{ color:var(--ink-soft); }
+  .sub-item .rp{ font-variant-numeric:tabular-nums; font-family:Consolas, monospace; font-weight:600; }
+  .empty-note{ text-align:center; color:var(--ink-soft); font-size:13.5px; padding:30px 10px; }
+
+  /* Edit screen */
+  .back-link{
+    display:inline-flex; align-items:center; gap:6px; color:var(--gold-dark);
+    font-size:13.5px; font-weight:600; cursor:pointer; margin-bottom:12px; background:none; border:none;
+  }
+  .edit-item{ border-top:1px solid var(--line); padding:12px 0; }
+  .edit-item:first-child{ border-top:none; }
+  .edit-item-name{ font-size:15px; font-weight:600; margin-bottom:2px; }
+  .edit-item-harga{ font-size:12.5px; color:var(--ink-soft); margin-bottom:8px; }
+  .edit-item .row2 input{ background:var(--blue-bg); border-color:#B9DCF2; }
+  .edit-item-calc{
+    display:flex; justify-content:space-between; font-size:12.5px;
+    color:var(--ink-soft); margin-top:8px;
+  }
+  .edit-item-calc .val{ font-variant-numeric:tabular-nums; font-weight:600; color:var(--ink); }
+
+  .summary-row{ display:flex; justify-content:space-between; font-size:14px; padding:6px 0; }
+  .summary-row .rp{ font-variant-numeric:tabular-nums; font-family:Consolas, monospace; }
+  .summary-row.total{
+    border-top:1px dashed var(--line); margin-top:6px; padding-top:10px;
+    font-size:17px; font-weight:700; color:var(--gold-dark);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <img src="logo-header.png" alt="Logo">
+    <div>
+      <p class="eyebrow">Panel Koreksi Data</p>
+      <h1>Jeda Admin</h1>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ===================== PIN GATE ===================== -->
+  <section class="screen active" id="pinGate">
+    <div class="lock">🔒</div>
+    <h2>Masuk Admin</h2>
+    <p>Masukkan PIN admin (diatur di sheet Aturan, sel B9)</p>
+    <input type="password" id="pinInput" inputmode="numeric" placeholder="••••" maxlength="12">
+    <button class="primary" id="pinSubmitBtn">Masuk</button>
+    <p class="status" id="pinStatusMsg"></p>
+  </section>
+
+  <!-- ===================== LIST SUBMISSIONS ===================== -->
+  <section class="screen" id="listScreen">
+    <div class="card">
+      <label for="filterRider">Filter Rider</label>
+      <select id="filterRider"><option value="">Semua Rider</option></select>
+      <div class="row2">
+        <div>
+          <label for="filterTanggal">Filter Tanggal</label>
+          <input type="date" id="filterTanggal">
+        </div>
+        <div style="display:flex; align-items:flex-end;">
+          <button class="secondary" id="clearFilterBtn" style="margin-top:12px;">Reset Filter</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="submissionList"></div>
+    <p class="status" id="listStatusMsg"></p>
+  </section>
+
+  <!-- ===================== EDIT SUBMISSION ===================== -->
+  <section class="screen" id="editScreen">
+    <button class="back-link" id="backToListBtn">← Kembali ke daftar</button>
+
+    <div class="card">
+      <div style="font-weight:700; font-size:15px;" id="editRiderTanggal"></div>
+    </div>
+
+    <div class="card" id="editItemsCard"></div>
+
+    <div class="card">
+      <label for="editModal">Modal (Kembalian)</label>
+      <input type="text" id="editModal" inputmode="numeric" placeholder="Rp0">
+      <label for="editQris">QRIS</label>
+      <input type="text" id="editQris" inputmode="numeric" placeholder="Rp0">
+
+      <div class="summary-row"><span>Total Minuman</span><span class="rp" id="editRpMinuman">Rp0</span></div>
+      <div class="summary-row"><span>Total Cookies</span><span class="rp" id="editRpCookies">Rp0</span></div>
+      <div class="summary-row"><span>Estimasi Komisi + Operasional</span><span class="rp" id="editKomisiOps">Rp0</span></div>
+      <div class="summary-row total"><span>Setoran Cash</span><span class="rp" id="editSetoranCash">Rp0</span></div>
+    </div>
+
+    <button class="primary" id="saveSubmissionBtn">Simpan Perubahan</button>
+    <button class="danger" id="deleteSubmissionBtn">Hapus Submission Ini</button>
+    <p class="status" id="editStatusMsg"></p>
+  </section>
+
+</main>
+
+<script>
+// ================== KONFIGURASI ==================
+// PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
+// (satu Google Sheet, satu backend, dua aplikasi).
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
+// ==================================================
+
+const $ = (id) => document.getElementById(id);
+let aturanData = {};
+let operasionalValue = 0;
+let currentSubmissionId = null;
+let _currentTanggalISO = "";
+
+function formatRupiah(n){ return "Rp" + Math.round(n || 0).toLocaleString("id-ID"); }
+function attachRupiahInput(input){
+  input.addEventListener("input", () => {
+    const raw = input.value.replace(/[^\d]/g, "");
+    input.value = raw ? "Rp" + Number(raw).toLocaleString("id-ID") : "";
+  });
+}
+function parseRupiahInput(input){
+  return parseInt(input.value.replace(/[^\d]/g, ""), 10) || 0;
+}
+
+function showScreen(id){
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  $(id).classList.add("active");
+}
+
+async function apiGet(params){
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(SCRIPT_URL + (qs ? "?" + qs : ""));
+  if(!res.ok) throw new Error("Gagal memuat (HTTP " + res.status + ")");
+  const data = await res.json().catch(() => { throw new Error("Respon server tidak valid"); });
+  if(data.status !== "ok") throw new Error(data.message || "Server menolak permintaan");
+  return data;
+}
+async function apiPost(payload){
+  const res = await fetch(SCRIPT_URL, {
+    method: "POST", body: JSON.stringify(payload),
+    headers: { "Content-Type": "text/plain;charset=utf-8" }
+  });
+  if(!res.ok) throw new Error("Gagal mengirim (HTTP " + res.status + ")");
+  const data = await res.json().catch(() => { throw new Error("Respon server tidak valid"); });
+  if(data.status !== "ok") throw new Error(data.message || "Server menolak permintaan");
+  return data;
+}
+
+// ---------- PIN Gate ----------
+function getPin(){ return localStorage.getItem("admin_pin") || ""; }
+
+async function tryAutoLogin(){
+  const pin = getPin();
+  if(!pin) return;
+  try{
+    await apiPost({ action: "verifyPin", pin });
+    await afterLogin();
+  }catch(e){
+    localStorage.removeItem("admin_pin");
+  }
+}
+
+$("pinSubmitBtn").addEventListener("click", async () => {
+  const pin = $("pinInput").value.trim();
+  if(!pin){
+    $("pinStatusMsg").textContent = "Masukkan PIN dulu";
+    $("pinStatusMsg").className = "status err";
+    return;
+  }
+  $("pinSubmitBtn").disabled = true;
+  $("pinStatusMsg").textContent = "Memeriksa...";
+  $("pinStatusMsg").className = "status";
+  try{
+    await apiPost({ action: "verifyPin", pin });
+    localStorage.setItem("admin_pin", pin);
+    await afterLogin();
+  }catch(e){
+    $("pinStatusMsg").textContent = e.message || "PIN salah";
+    $("pinStatusMsg").className = "status err";
+  }finally{
+    $("pinSubmitBtn").disabled = false;
+  }
+});
+
+async function afterLogin(){
+  showScreen("listScreen");
+  await loadFilterOptions();
+  await loadSubmissions();
+}
+
+// ---------- Filter options (rider, aturan, operasional) ----------
+async function loadFilterOptions(){
+  try{
+    const data = await apiGet({});
+    aturanData = data.aturan || {};
+    operasionalValue = data.operasional || 0;
+    const select = $("filterRider");
+    select.innerHTML = '<option value="">Semua Rider</option>' +
+      (data.riders || []).map(r => `<option value="${r}">${r}</option>`).join("");
+  }catch(e){
+    $("listStatusMsg").textContent = "Gagal memuat data awal: " + e.message;
+    $("listStatusMsg").className = "status err";
+  }
+}
+
+$("filterRider").addEventListener("change", loadSubmissions);
+$("filterTanggal").addEventListener("change", loadSubmissions);
+$("clearFilterBtn").addEventListener("click", () => {
+  $("filterRider").value = "";
+  $("filterTanggal").value = "";
+  loadSubmissions();
+});
+
+// ---------- List submissions ----------
+async function loadSubmissions(){
+  $("listStatusMsg").textContent = "Memuat...";
+  $("listStatusMsg").className = "status";
+  try{
+    const params = { action: "listSubmissions" };
+    if($("filterRider").value) params.rider = $("filterRider").value;
+    if($("filterTanggal").value) params.tanggal = $("filterTanggal").value;
+    const data = await apiGet(params);
+    renderSubmissionList(data.submissions || []);
+    $("listStatusMsg").textContent = "";
+  }catch(e){
+    $("listStatusMsg").textContent = "Gagal memuat: " + e.message;
+    $("listStatusMsg").className = "status err";
+  }
+}
+
+function renderSubmissionList(list){
+  const container = $("submissionList");
+  if(!list.length){
+    container.innerHTML = '<p class="empty-note">Tidak ada data untuk filter ini.</p>';
+    return;
+  }
+  container.innerHTML = list.map(s => {
+    const tanggalStr = new Date(s.tanggal + "T00:00:00").toLocaleDateString("id-ID", { day:"numeric", month:"short", year:"numeric" });
+    return `
+      <div class="sub-item" data-id="${s.id}">
+        <div class="top">
+          <span class="rider">${s.rider}</span>
+          <span class="tanggal">${tanggalStr}</span>
+        </div>
+        <div class="bottom">
+          <span class="label">Total: <span class="rp">${formatRupiah(s.totalPenjualan)}</span></span>
+          <span class="label">Setoran: <span class="rp">${formatRupiah(s.setoranCash)}</span></span>
+        </div>
+      </div>`;
+  }).join("");
+  container.querySelectorAll(".sub-item").forEach(el => {
+    el.addEventListener("click", () => openSubmission(el.dataset.id));
+  });
+}
+
+// ---------- Edit submission ----------
+async function openSubmission(id){
+  $("editStatusMsg").textContent = "Memuat data...";
+  $("editStatusMsg").className = "status";
+  showScreen("editScreen");
+  try{
+    const data = await apiGet({ action: "getSubmission", id });
+    currentSubmissionId = id;
+    _currentTanggalISO = data.tanggal;
+    const tanggalStr = new Date(data.tanggal + "T00:00:00").toLocaleDateString("id-ID", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+    $("editRiderTanggal").textContent = `${data.rider} · ${tanggalStr}`;
+
+    $("editModal").value = data.modal ? "Rp" + Number(data.modal).toLocaleString("id-ID") : "";
+    $("editQris").value = data.qris ? "Rp" + Number(data.qris).toLocaleString("id-ID") : "";
+
+    const itemsCard = $("editItemsCard");
+    itemsCard.innerHTML = data.items.map((item, idx) => `
+      <div class="edit-item" data-idx="${idx}" data-menu="${item.menu}" data-kategori="${item.kategori}"
+           data-sub="${item.subKategori || ''}" data-satuan="${item.satuan}"
+           data-konversi="${item.konversi || 1}" data-harga="${item.harga}">
+        <div class="edit-item-name">${item.menu}</div>
+        <div class="edit-item-harga">${formatRupiah(item.harga)} / ${item.satuan}</div>
+        <div class="row2">
+          <div>
+            <label style="margin:0 0 4px;">Stock Awal (${item.satuan})</label>
+            <input type="number" class="stockAwal" value="${item.stockAwal}" min="0">
+          </div>
+          <div>
+            <label style="margin:0 0 4px;">Terjual (${item.satuan})</label>
+            <input type="number" class="terjual" value="${item.terjual}" min="0">
+          </div>
+        </div>
+        <div class="edit-item-calc">
+          <span>Sisa: <span class="val sisaVal">${item.stockAwal - item.terjual}</span> ${item.satuan}</span>
+          <span>Total: <span class="val totalVal">${formatRupiah(item.terjual * item.harga)}</span></span>
+        </div>
+      </div>`).join("");
+
+    itemsCard.querySelectorAll(".edit-item").forEach(row => {
+      const stockInput = row.querySelector(".stockAwal");
+      const terjualInput = row.querySelector(".terjual");
+      const sisaVal = row.querySelector(".sisaVal");
+      const totalVal = row.querySelector(".totalVal");
+      const harga = parseFloat(row.dataset.harga) || 0;
+      function recalc(){
+        const s = parseFloat(stockInput.value) || 0;
+        const t = parseFloat(terjualInput.value) || 0;
+        sisaVal.textContent = s - t;
+        totalVal.textContent = formatRupiah(t * harga);
+        updateEditSummary();
+      }
+      stockInput.addEventListener("input", recalc);
+      terjualInput.addEventListener("input", recalc);
+    });
+
+    updateEditSummary();
+    $("editStatusMsg").textContent = "";
+  }catch(e){
+    $("editStatusMsg").textContent = "Gagal memuat: " + e.message;
+    $("editStatusMsg").className = "status err";
+  }
+}
+
+function hitungKomisi(unit, aturan){
+  if(!aturan) return 0;
+  const batas = aturan.batas || 0;
+  const t1 = Math.min(unit, batas) * (aturan.tarif1 || 0);
+  const t2 = Math.max(unit - batas, 0) * (aturan.tarif2 || 0);
+  return t1 + t2;
+}
+
+function updateEditSummary(){
+  let rpMinuman = 0, rpCookies = 0, cupMinuman = 0, pcsCookies = 0;
+  document.querySelectorAll("#editItemsCard .edit-item").forEach(row => {
+    const t = parseFloat(row.querySelector(".terjual").value) || 0;
+    const harga = parseFloat(row.dataset.harga) || 0;
+    const konversi = parseFloat(row.dataset.konversi) || 1;
+    const rp = t * harga;
+    if(row.dataset.kategori === "Minuman"){ rpMinuman += rp; cupMinuman += t * konversi; }
+    else { rpCookies += rp; pcsCookies += t; }
+  });
+  const grandTotal = rpMinuman + rpCookies;
+  const komisi = hitungKomisi(cupMinuman, aturanData["Minuman"]) + hitungKomisi(pcsCookies, aturanData["Cookies"]);
+  const komisiPlusOps = komisi + operasionalValue;
+  const modal = parseRupiahInput($("editModal"));
+  const qris = parseRupiahInput($("editQris"));
+  const setoranCash = grandTotal + modal - qris - komisi - operasionalValue;
+
+  $("editRpMinuman").textContent = formatRupiah(rpMinuman);
+  $("editRpCookies").textContent = formatRupiah(rpCookies);
+  $("editKomisiOps").textContent = formatRupiah(komisiPlusOps);
+  $("editSetoranCash").textContent = formatRupiah(setoranCash);
+
+  return { rpMinuman, rpCookies, grandTotal, komisi, komisiPlusOps, setoranCash, modal, qris };
+}
+
+attachRupiahInput($("editModal"));
+attachRupiahInput($("editQris"));
+$("editModal").addEventListener("input", updateEditSummary);
+$("editQris").addEventListener("input", updateEditSummary);
+
+$("backToListBtn").addEventListener("click", () => {
+  showScreen("listScreen");
+  loadSubmissions();
+});
+
+$("saveSubmissionBtn").addEventListener("click", async () => {
+  const items = [];
+  document.querySelectorAll("#editItemsCard .edit-item").forEach(row => {
+    const s = parseFloat(row.querySelector(".stockAwal").value) || 0;
+    const t = parseFloat(row.querySelector(".terjual").value) || 0;
+    items.push({
+      menu: row.dataset.menu, kategori: row.dataset.kategori,
+      subKategori: row.dataset.sub, satuan: row.dataset.satuan,
+      konversi: parseFloat(row.dataset.konversi) || 1,
+      harga: parseFloat(row.dataset.harga) || 0,
+      stockAwal: s, terjual: t
+    });
+  });
+  const summary = updateEditSummary();
+  const rider = $("editRiderTanggal").textContent.split(" · ")[0];
+
+  $("saveSubmissionBtn").disabled = true;
+  $("editStatusMsg").textContent = "Menyimpan...";
+  $("editStatusMsg").className = "status";
+  try{
+    await apiPost({
+      action: "updateSubmission", pin: getPin(), submissionId: currentSubmissionId,
+      rider, tanggal: currentTanggalValue(), items,
+      totalPenjualan: summary.grandTotal, totalKomisi: summary.komisi,
+      modal: summary.modal, qris: summary.qris,
+      operasional: operasionalValue, setoranCash: summary.setoranCash
+    });
+    $("editStatusMsg").textContent = "Perubahan tersimpan ✓";
+    $("editStatusMsg").className = "status ok";
+  }catch(e){
+    $("editStatusMsg").textContent = "Gagal menyimpan: " + e.message;
+    $("editStatusMsg").className = "status err";
+  }finally{
+    $("saveSubmissionBtn").disabled = false;
+  }
+});
+
+$("deleteSubmissionBtn").addEventListener("click", async () => {
+  if(!confirm("Yakin hapus seluruh data submission ini? Tindakan ini tidak bisa dibatalkan.")) return;
+  $("deleteSubmissionBtn").disabled = true;
+  $("editStatusMsg").textContent = "Menghapus...";
+  $("editStatusMsg").className = "status";
+  try{
+    await apiPost({ action: "deleteSubmission", pin: getPin(), submissionId: currentSubmissionId });
+    $("editStatusMsg").textContent = "Submission dihapus ✓";
+    $("editStatusMsg").className = "status ok";
+    setTimeout(() => { showScreen("listScreen"); loadSubmissions(); }, 800);
+  }catch(e){
+    $("editStatusMsg").textContent = "Gagal menghapus: " + e.message;
+    $("editStatusMsg").className = "status err";
+  }finally{
+    $("deleteSubmissionBtn").disabled = false;
+  }
+});
+
+// tanggal ISO (yyyy-mm-dd) submission yang sedang diedit
+function currentTanggalValue(){ return _currentTanggalISO; }
+
+// ---------- Start ----------
+tryAutoLogin();
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
