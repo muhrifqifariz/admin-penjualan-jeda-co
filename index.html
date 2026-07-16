@@ -30,6 +30,13 @@
   header .brand img{ height:40px; width:auto; }
   header .eyebrow{ font-size:12px; letter-spacing:.14em; text-transform:uppercase; opacity:.8; margin:0 0 4px; }
   header h1{ margin:0; font-family:Georgia, serif; font-size:22px; font-weight:700; }
+  .tabs{ display:flex; gap:8px; margin-top:16px; }
+  .tab-btn{
+    flex:1; padding:10px; border:none; border-radius:10px;
+    background:rgba(255,255,255,0.2); color:#fff;
+    font-size:13.5px; font-weight:600; cursor:pointer;
+  }
+  .tab-btn.active{ background:var(--paper); color:var(--gold-dark); }
 
   main{ max-width:520px; margin:0 auto; padding:18px 16px 0; }
   .screen{ display:none; }
@@ -129,6 +136,10 @@
       <h1>Jeda Admin</h1>
     </div>
   </div>
+  <div class="tabs" id="adminTabs" style="display:none;">
+    <button class="tab-btn active" data-screen="listScreen">Revisi Data</button>
+    <button class="tab-btn" data-screen="stockScreen">Set Stock Awal</button>
+  </div>
 </header>
 
 <main>
@@ -190,6 +201,23 @@
     <p class="status" id="editStatusMsg"></p>
   </section>
 
+  <!-- ===================== SET STOCK AWAL ===================== -->
+  <section class="screen" id="stockScreen">
+    <div class="card">
+      <label for="stockRider">Pilih Rider</label>
+      <select id="stockRider"><option value="">— Pilih Rider —</option></select>
+      <label for="stockTanggal">Tanggal</label>
+      <input type="date" id="stockTanggal">
+    </div>
+
+    <div class="card" id="stockItemsCard">
+      <p class="empty-note">Pilih rider & tanggal dulu di atas.</p>
+    </div>
+
+    <button class="primary" id="saveStockBtn">Simpan Stock Awal</button>
+    <p class="status" id="stockStatusMsg"></p>
+  </section>
+
 </main>
 
 <script>
@@ -202,6 +230,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8
 const $ = (id) => document.getElementById(id);
 let aturanData = {};
 let operasionalValue = 0;
+let menuData = [];
 let currentSubmissionId = null;
 let _currentTanggalISO = "";
 
@@ -219,7 +248,14 @@ function parseRupiahInput(input){
 function showScreen(id){
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   $(id).classList.add("active");
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.screen === id));
 }
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    showScreen(btn.dataset.screen);
+    if(btn.dataset.screen === "stockScreen") loadStockScreen();
+  });
+});
 
 async function apiGet(params){
   const qs = new URLSearchParams(params).toString();
@@ -277,6 +313,7 @@ $("pinSubmitBtn").addEventListener("click", async () => {
 });
 
 async function afterLogin(){
+  $("adminTabs").style.display = "flex";
   showScreen("listScreen");
   await loadFilterOptions();
   await loadSubmissions();
@@ -288,9 +325,11 @@ async function loadFilterOptions(){
     const data = await apiGet({});
     aturanData = data.aturan || {};
     operasionalValue = data.operasional || 0;
-    const select = $("filterRider");
-    select.innerHTML = '<option value="">Semua Rider</option>' +
-      (data.riders || []).map(r => `<option value="${r}">${r}</option>`).join("");
+    menuData = data.menu || [];
+    const riderOptions = (data.riders || []).map(r => `<option value="${r}">${r}</option>`).join("");
+    $("filterRider").innerHTML = '<option value="">Semua Rider</option>' + riderOptions;
+    $("stockRider").innerHTML = '<option value="">— Pilih Rider —</option>' + riderOptions;
+    if(!$("stockTanggal").value) $("stockTanggal").value = new Date().toLocaleDateString("en-CA");
   }catch(e){
     $("listStatusMsg").textContent = "Gagal memuat data awal: " + e.message;
     $("listStatusMsg").className = "status err";
@@ -299,6 +338,8 @@ async function loadFilterOptions(){
 
 $("filterRider").addEventListener("change", loadSubmissions);
 $("filterTanggal").addEventListener("change", loadSubmissions);
+$("stockRider").addEventListener("change", loadStockScreen);
+$("stockTanggal").addEventListener("change", loadStockScreen);
 $("clearFilterBtn").addEventListener("click", () => {
   $("filterRider").value = "";
   $("filterTanggal").value = "";
@@ -347,7 +388,75 @@ function renderSubmissionList(list){
   });
 }
 
-// ---------- Edit submission ----------
+// ---------- Set Stock Awal ----------
+async function loadStockScreen(){
+  const rider = $("stockRider").value;
+  const tanggal = $("stockTanggal").value;
+  const card = $("stockItemsCard");
+  if(!rider || !tanggal){
+    card.innerHTML = '<p class="empty-note">Pilih rider & tanggal dulu di atas.</p>';
+    return;
+  }
+  card.innerHTML = '<p class="empty-note">Memuat...</p>';
+  let existing = {};
+  try{
+    const data = await apiGet({ action: "getSession", rider, tanggal });
+    existing = data.items || {};
+  }catch(e){
+    // belum ada sesi hari itu -> semua mulai dari 0, itu wajar
+  }
+  if(!menuData.length){
+    card.innerHTML = '<p class="empty-note">Data menu belum termuat, coba buka lagi tab ini.</p>';
+    return;
+  }
+  card.innerHTML = menuData.map(m => {
+    const satuan = m.satuan || (m.kategori === "Cookies" ? "pcs" : "cup");
+    const info = existing[m.menu];
+    const stockAwal = info && info.stockAwal ? info.stockAwal : 0;
+    return `
+      <div class="edit-item" data-menu="${m.menu}" data-kategori="${m.kategori}"
+           data-sub="${m.subKategori || ''}" data-satuan="${satuan}"
+           data-konversi="${m.konversi || 1}" data-harga="${m.harga}">
+        <div class="edit-item-name">${m.menu}</div>
+        <div class="edit-item-harga">${formatRupiah(m.harga)} / ${satuan}</div>
+        <label style="margin:8px 0 4px;">Stock Awal (${satuan})</label>
+        <input type="number" class="stockAwalInput" value="${stockAwal}" min="0">
+      </div>`;
+  }).join("");
+}
+
+$("saveStockBtn").addEventListener("click", async () => {
+  const rider = $("stockRider").value;
+  const tanggal = $("stockTanggal").value;
+  if(!rider || !tanggal){
+    $("stockStatusMsg").textContent = "Pilih rider & tanggal dulu";
+    $("stockStatusMsg").className = "status err";
+    return;
+  }
+  const items = [];
+  document.querySelectorAll("#stockItemsCard .edit-item").forEach(row => {
+    items.push({
+      menu: row.dataset.menu, kategori: row.dataset.kategori,
+      subKategori: row.dataset.sub, satuan: row.dataset.satuan,
+      konversi: parseFloat(row.dataset.konversi) || 1,
+      harga: parseFloat(row.dataset.harga) || 0,
+      stockAwal: parseFloat(row.querySelector(".stockAwalInput").value) || 0
+    });
+  });
+  $("saveStockBtn").disabled = true;
+  $("stockStatusMsg").textContent = "Menyimpan...";
+  $("stockStatusMsg").className = "status";
+  try{
+    await apiPost({ action: "setStockAwalBatch", pin: getPin(), rider, tanggal, items });
+    $("stockStatusMsg").textContent = "Stock Awal tersimpan ✓";
+    $("stockStatusMsg").className = "status ok";
+  }catch(e){
+    $("stockStatusMsg").textContent = "Gagal menyimpan: " + e.message;
+    $("stockStatusMsg").className = "status err";
+  }finally{
+    $("saveStockBtn").disabled = false;
+  }
+});
 async function openSubmission(id){
   $("editStatusMsg").textContent = "Memuat data...";
   $("editStatusMsg").className = "status";
