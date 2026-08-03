@@ -123,6 +123,12 @@
     font-size:13.5px; font-weight:600; cursor:pointer; margin-bottom:12px; background:none; border:none;
   }
   .edit-item{ border-top:1px solid var(--line); padding:12px 0; }
+  .item-group-title{
+    font-size:12px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--gold-dark); margin:16px 0 4px; font-weight:700;
+    border-bottom:1px solid var(--line); padding-bottom:6px;
+  }
+  .item-group-title:first-child{ margin-top:0; }
   .edit-item:first-child{ border-top:none; }
   .edit-item-name{ font-size:15px; font-weight:600; margin-bottom:2px; }
   .edit-item-harga{ font-size:12.5px; color:var(--ink-soft); margin-bottom:8px; }
@@ -154,7 +160,6 @@
   <div class="tabs" id="adminTabs" style="display:none;">
     <button class="tab-btn active" data-screen="listScreen">Revisi Data</button>
     <button class="tab-btn" data-screen="stockScreen">Set Stock Awal</button>
-    <button class="tab-btn" data-screen="riwayatScreen">Riwayat</button>
     <button class="tab-btn" data-screen="riwayatScreen">Riwayat</button>
   </div>
 </header>
@@ -207,10 +212,13 @@
       <label for="editQris">QRIS</label>
       <input type="text" id="editQris" inputmode="numeric" placeholder="Rp0">
 
+      <div class="summary-row"><span>Jumlah Cup Minuman</span><span class="rp" id="editJumlahCup">0</span></div>
+      <div class="summary-row"><span>Jumlah Cookies</span><span class="rp" id="editJumlahCookies">0</span></div>
       <div class="summary-row"><span>Total Minuman</span><span class="rp" id="editRpMinuman">Rp0</span></div>
       <div class="summary-row"><span>Total Cookies</span><span class="rp" id="editRpCookies">Rp0</span></div>
-      <div class="summary-row"><span>Estimasi Komisi + Operasional</span><span class="rp" id="editKomisiOps">Rp0</span></div>
+      <div class="summary-row"><span>Estimasi Komisi + Insentif</span><span class="rp" id="editKomisiOps">Rp0</span></div>
       <div class="summary-row total"><span>Setoran Cash</span><span class="rp" id="editSetoranCash">Rp0</span></div>
+      <p id="editAmbilKomisiNote" style="font-size:11.5px; color:var(--ink-soft); text-align:center; margin:8px 0 0;"></p>
     </div>
 
     <button class="primary" id="saveSubmissionBtn">Simpan Perubahan</button>
@@ -257,7 +265,7 @@
 // PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
 // (satu Google Sheet, satu backend, dua aplikasi).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
-const APP_VERSION = "2026-07-25-riwayat-v1"; // ganti tiap update, buat cek device mana yg belum update
+const APP_VERSION = "2026-08-01-insentif-v1"; // ganti tiap update, buat cek device mana yg belum update
 document.getElementById("appVersionLabel").textContent = APP_VERSION;
 // ==================================================
 
@@ -266,6 +274,8 @@ let aturanData = {};
 let operasionalValue = 0;
 let menuData = [];
 let currentSubmissionId = null;
+let currentAmbilKomisi = "Harian";
+let currentOperasionalValue = 0;
 let _currentTanggalISO = "";
 
 function formatRupiah(n){ return "Rp" + Math.round(n || 0).toLocaleString("id-ID"); }
@@ -447,20 +457,31 @@ async function loadStockScreen(){
     card.innerHTML = '<p class="empty-note">Data menu belum termuat, coba buka lagi tab ini.</p>';
     return;
   }
-  card.innerHTML = menuData.map(m => {
-    const satuan = m.satuan || (m.kategori === "Cookies" ? "pcs" : "cup");
-    const info = existing[m.menu];
-    const stockAwal = info && info.stockAwal ? info.stockAwal : 0;
-    return `
-      <div class="edit-item" data-menu="${m.menu}" data-kategori="${m.kategori}"
-           data-sub="${m.subKategori || ''}" data-satuan="${satuan}"
-           data-konversi="${m.konversi || 1}" data-harga="${m.harga}">
-        <div class="edit-item-name">${m.menu}</div>
-        <div class="edit-item-harga">${formatRupiah(m.harga)} / ${satuan}</div>
-        <label style="margin:8px 0 4px;">Stock Awal (${satuan})</label>
-        <input type="number" class="stockAwalInput" value="${stockAwal}" min="0">
-      </div>`;
-  }).join("");
+  const groups = groupItemsBySubkategori(menuData.map(m => ({
+    menu: m.menu, kategori: m.kategori, subKategori: m.subKategori,
+    satuan: m.satuan, konversi: m.konversi, harga: m.harga
+  })));
+  let html = "";
+  SUBKATEGORI_ORDER.forEach(sub => {
+    const items = groups[sub];
+    if(!items || !items.length) return;
+    html += `<p class="item-group-title">${SUBKATEGORI_LABEL[sub]}</p>`;
+    items.forEach(m => {
+      const satuan = m.satuan || (m.kategori === "Cookies" ? "pcs" : "cup");
+      const info = existing[m.menu];
+      const stockAwal = info && info.stockAwal ? info.stockAwal : 0;
+      html += `
+        <div class="edit-item" data-menu="${m.menu}" data-kategori="${m.kategori}"
+             data-sub="${m.subKategori || ''}" data-satuan="${satuan}"
+             data-konversi="${m.konversi || 1}" data-harga="${m.harga}">
+          <div class="edit-item-name">${m.menu}</div>
+          <div class="edit-item-harga">${formatRupiah(m.harga)} / ${satuan}</div>
+          <label style="margin:8px 0 4px;">Stock Awal (${satuan})</label>
+          <input type="number" class="stockAwalInput" value="${stockAwal}" min="0">
+        </div>`;
+    });
+  });
+  card.innerHTML = html;
 }
 
 // ---------- Riwayat ----------
@@ -541,6 +562,24 @@ $("saveStockBtn").addEventListener("click", async () => {
     $("saveStockBtn").disabled = false;
   }
 });
+const SUBKATEGORI_ORDER = ["Cup", "500 ml", "1 Liter", "Cookies"];
+const SUBKATEGORI_LABEL = {
+  "Cup": "Minuman - Cup",
+  "500 ml": "Minuman - 500 ml (botol)",
+  "1 Liter": "Minuman - 1 Liter (botol)",
+  "Cookies": "Cookies (pcs)"
+};
+function groupItemsBySubkategori(items){
+  const groups = {};
+  SUBKATEGORI_ORDER.forEach(sub => { groups[sub] = []; });
+  items.forEach(item => {
+    const sub = item.kategori === "Cookies" ? "Cookies" : (item.subKategori || "Cup");
+    if(!groups[sub]) groups[sub] = [];
+    groups[sub].push(item);
+  });
+  return groups;
+}
+
 async function openSubmission(id){
   $("editStatusMsg").textContent = "Memuat data...";
   $("editStatusMsg").className = "status";
@@ -549,6 +588,8 @@ async function openSubmission(id){
     const data = await apiGet({ action: "getSubmission", id });
     currentSubmissionId = id;
     _currentTanggalISO = data.tanggal;
+    currentAmbilKomisi = data.ambilKomisi || "Harian";
+    currentOperasionalValue = (data.operasional || data.operasional === 0) ? data.operasional : operasionalValue;
     const tanggalStr = new Date(data.tanggal + "T00:00:00").toLocaleDateString("id-ID", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
     $("editRiderTanggal").textContent = `${data.rider} · ${tanggalStr}`;
 
@@ -556,27 +597,37 @@ async function openSubmission(id){
     $("editQris").value = data.qris ? "Rp" + Number(data.qris).toLocaleString("id-ID") : "";
 
     const itemsCard = $("editItemsCard");
-    itemsCard.innerHTML = data.items.map((item, idx) => `
-      <div class="edit-item" data-idx="${idx}" data-menu="${item.menu}" data-kategori="${item.kategori}"
-           data-sub="${item.subKategori || ''}" data-satuan="${item.satuan}"
-           data-konversi="${item.konversi || 1}" data-harga="${item.harga}">
-        <div class="edit-item-name">${item.menu}</div>
-        <div class="edit-item-harga">${formatRupiah(item.harga)} / ${item.satuan}</div>
-        <div class="row2">
-          <div>
-            <label style="margin:0 0 4px;">Stock Awal (${item.satuan})</label>
-            <input type="number" class="stockAwal" value="${item.stockAwal}" min="0">
-          </div>
-          <div>
-            <label style="margin:0 0 4px;">Terjual (${item.satuan})</label>
-            <input type="number" class="terjual" value="${item.terjual}" min="0">
-          </div>
-        </div>
-        <div class="edit-item-calc">
-          <span>Sisa: <span class="val sisaVal">${item.stockAwal - item.terjual}</span> ${item.satuan}</span>
-          <span>Total: <span class="val totalVal">${formatRupiah(item.terjual * item.harga)}</span></span>
-        </div>
-      </div>`).join("");
+    const groups = groupItemsBySubkategori(data.items);
+    let html = "";
+    SUBKATEGORI_ORDER.forEach(sub => {
+      const items = groups[sub];
+      if(!items || !items.length) return;
+      html += `<p class="item-group-title">${SUBKATEGORI_LABEL[sub]}</p>`;
+      items.forEach((item, idx) => {
+        html += `
+          <div class="edit-item" data-idx="${idx}" data-menu="${item.menu}" data-kategori="${item.kategori}"
+               data-sub="${item.subKategori || ''}" data-satuan="${item.satuan}"
+               data-konversi="${item.konversi || 1}" data-harga="${item.harga}">
+            <div class="edit-item-name">${item.menu}</div>
+            <div class="edit-item-harga">${formatRupiah(item.harga)} / ${item.satuan}</div>
+            <div class="row2">
+              <div>
+                <label style="margin:0 0 4px;">Stock Awal (${item.satuan})</label>
+                <input type="number" class="stockAwal" value="${item.stockAwal}" min="0">
+              </div>
+              <div>
+                <label style="margin:0 0 4px;">Terjual (${item.satuan})</label>
+                <input type="number" class="terjual" value="${item.terjual}" min="0">
+              </div>
+            </div>
+            <div class="edit-item-calc">
+              <span>Sisa: <span class="val sisaVal">${item.stockAwal - item.terjual}</span> ${item.satuan}</span>
+              <span>Total: <span class="val totalVal">${formatRupiah(item.terjual * item.harga)}</span></span>
+            </div>
+          </div>`;
+      });
+    });
+    itemsCard.innerHTML = html;
 
     itemsCard.querySelectorAll(".edit-item").forEach(row => {
       const stockInput = row.querySelector(".stockAwal");
@@ -623,17 +674,28 @@ function updateEditSummary(){
   });
   const grandTotal = rpMinuman + rpCookies;
   const komisi = hitungKomisi(cupMinuman, aturanData["Minuman"]) + hitungKomisi(pcsCookies, aturanData["Cookies"]);
-  const komisiPlusOps = komisi + operasionalValue;
+  const komisiPlusOps = komisi + currentOperasionalValue;
   const modal = parseRupiahInput($("editModal"));
   const qris = parseRupiahInput($("editQris"));
-  const setoranCash = grandTotal + modal - qris - komisi - operasionalValue;
+  const komisiDikurangi = currentAmbilKomisi === "Harian" ? komisi : 0;
+  const setoranCash = grandTotal + modal - qris - currentOperasionalValue - komisiDikurangi;
 
+  $("editJumlahCup").textContent = cupMinuman;
+  $("editJumlahCookies").textContent = pcsCookies;
   $("editRpMinuman").textContent = formatRupiah(rpMinuman);
   $("editRpCookies").textContent = formatRupiah(rpCookies);
   $("editKomisiOps").textContent = formatRupiah(komisiPlusOps);
   $("editSetoranCash").textContent = formatRupiah(setoranCash);
+  const noteEl = $("editAmbilKomisiNote");
+  if(noteEl){
+    noteEl.textContent = "Ambil Komisi: " + currentAmbilKomisi + (
+      currentAmbilKomisi === "Bulanan"
+        ? " (komisi TIDAK dikurangi dari Setoran Cash, diakumulasi terpisah)"
+        : " (komisi sudah dikurangi dari Setoran Cash)"
+    );
+  }
 
-  return { rpMinuman, rpCookies, grandTotal, komisi, komisiPlusOps, setoranCash, modal, qris };
+  return { rpMinuman, rpCookies, grandTotal, komisi, komisiPlusOps, setoranCash, modal, qris, cupMinuman, pcsCookies };
 }
 
 attachRupiahInput($("editModal"));
@@ -671,7 +733,7 @@ $("saveSubmissionBtn").addEventListener("click", async () => {
       rider, tanggal: currentTanggalValue(), items,
       totalPenjualan: summary.grandTotal, totalKomisi: summary.komisi,
       modal: summary.modal, qris: summary.qris,
-      operasional: operasionalValue, setoranCash: summary.setoranCash
+      operasional: currentOperasionalValue, setoranCash: summary.setoranCash
     });
     $("editStatusMsg").textContent = "Perubahan tersimpan ✓";
     $("editStatusMsg").className = "status ok";
