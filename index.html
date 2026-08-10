@@ -265,7 +265,7 @@
 // PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
 // (satu Google Sheet, satu backend, dua aplikasi).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
-const APP_VERSION = "2026-08-01-insentif-v1"; // ganti tiap update, buat cek device mana yg belum update
+const APP_VERSION = "2026-08-09-urutan-stok-v1"; // ganti tiap update, buat cek device mana yg belum update
 document.getElementById("appVersionLabel").textContent = APP_VERSION;
 // ==================================================
 
@@ -562,7 +562,7 @@ $("saveStockBtn").addEventListener("click", async () => {
     $("saveStockBtn").disabled = false;
   }
 });
-const SUBKATEGORI_ORDER = ["Cup", "500 ml", "1 Liter", "Cookies"];
+const SUBKATEGORI_ORDER = ["Cup", "Cookies", "500 ml", "1 Liter"];
 const SUBKATEGORI_LABEL = {
   "Cup": "Minuman - Cup",
   "500 ml": "Minuman - 500 ml (botol)",
