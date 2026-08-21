@@ -244,6 +244,12 @@
       <input type="date" id="stockTanggal">
     </div>
 
+    <div class="card" id="stockSummaryCard" style="display:none;">
+      <p class="form-section-title" style="margin-top:0">Ringkasan Bawaan</p>
+      <div class="receipt-line"><span>Minuman</span><span class="val" id="stockSummaryMinuman">0 cup</span></div>
+      <div class="receipt-line"><span>Cookies</span><span class="val" id="stockSummaryCookies">0 pcs</span></div>
+    </div>
+
     <div class="card" id="stockItemsCard">
       <p class="empty-note">Pilih rider & tanggal dulu di atas.</p>
     </div>
@@ -296,7 +302,7 @@
 // PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
 // (satu Google Sheet, satu backend, dua aplikasi).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
-const APP_VERSION = "2026-08-21-acuanstock-v6"; // ganti tiap update, buat cek device mana yg belum update
+const APP_VERSION = "2026-08-22-pin-summary-v1"; // ganti tiap update, buat cek device mana yg belum update
 document.getElementById("appVersionLabel").textContent = APP_VERSION;
 // ==================================================
 
@@ -354,18 +360,13 @@ async function apiPost(payload){
 }
 
 // ---------- PIN Gate ----------
-function getPin(){ return localStorage.getItem("admin_pin") || ""; }
-
-async function tryAutoLogin(){
-  const pin = getPin();
-  if(!pin) return;
-  try{
-    await apiPost({ action: "verifyPin", pin });
-    await afterLogin();
-  }catch(e){
-    localStorage.removeItem("admin_pin");
-  }
-}
+// PIN SENGAJA tidak disimpan ke localStorage -- setiap kali app dibuka lagi
+// (termasuk kalau browser "ingat" tab-nya), harus ketik PIN ulang. PIN cuma
+// disimpan di memori (variabel biasa) selama sesi ini masih terbuka, dipakai
+// utk aksi2 lain yg butuh PIN (Simpan Perubahan, Hapus, Set Stock Awal) tanpa
+// perlu minta PIN berkali-kali DALAM sesi yg sama.
+let currentPin = "";
+function getPin(){ return currentPin; }
 
 $("pinSubmitBtn").addEventListener("click", async () => {
   const pin = $("pinInput").value.trim();
@@ -379,7 +380,7 @@ $("pinSubmitBtn").addEventListener("click", async () => {
   $("pinStatusMsg").className = "status";
   try{
     await apiPost({ action: "verifyPin", pin });
-    localStorage.setItem("admin_pin", pin);
+    currentPin = pin;
     await afterLogin();
   }catch(e){
     $("pinStatusMsg").textContent = e.message || "PIN salah";
@@ -476,6 +477,7 @@ async function loadStockScreen(){
   const card = $("stockItemsCard");
   if(!rider || !tanggal){
     card.innerHTML = '<p class="empty-note">Pilih rider & tanggal dulu di atas.</p>';
+    $("stockSummaryCard").style.display = "none";
     return;
   }
   card.innerHTML = '<p class="empty-note">Memuat...</p>';
@@ -515,6 +517,26 @@ async function loadStockScreen(){
     });
   });
   card.innerHTML = html;
+  card.querySelectorAll(".stockAwalInput").forEach(input => {
+    input.addEventListener("input", updateStockSummary);
+  });
+  updateStockSummary();
+}
+
+function updateStockSummary(){
+  const summaryCard = $("stockSummaryCard");
+  const items = document.querySelectorAll("#stockItemsCard .edit-item");
+  if(!items.length){ summaryCard.style.display = "none"; return; }
+  let minumanCup = 0, cookiesPcs = 0;
+  items.forEach(item => {
+    const stockAwal = parseFloat(item.querySelector(".stockAwalInput").value) || 0;
+    const konversi = parseFloat(item.dataset.konversi) || 1;
+    if(item.dataset.kategori === "Cookies") cookiesPcs += stockAwal;
+    else minumanCup += stockAwal * konversi;
+  });
+  $("stockSummaryMinuman").textContent = minumanCup + " cup";
+  $("stockSummaryCookies").textContent = cookiesPcs + " pcs";
+  summaryCard.style.display = "block";
 }
 
 // ---------- Riwayat ----------
@@ -869,7 +891,7 @@ $("deleteSubmissionBtn").addEventListener("click", async () => {
 function currentTanggalValue(){ return _currentTanggalISO; }
 
 // ---------- Start ----------
-tryAutoLogin();
+// (Sengaja TIDAK ada auto-login -- PIN gate selalu tampil dulu tiap app dibuka)
 if("serviceWorker" in navigator){
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(()=>{});
