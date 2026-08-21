@@ -123,6 +123,14 @@
     font-size:13.5px; font-weight:600; cursor:pointer; margin-bottom:12px; background:none; border:none;
   }
   .edit-item{ border-top:1px solid var(--line); padding:12px 0; }
+  .acuan-item{ border-top:1px solid var(--line); padding:14px 0; }
+  .acuan-item:first-child{ border-top:none; }
+  .acuan-item-name{ font-size:15px; font-weight:600; margin-bottom:8px; }
+  .acuan-tipe-select{ width:auto; display:inline-block; padding:6px 10px; font-size:13px; margin-bottom:10px; }
+  .acuan-cols{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .acuan-col-label{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); margin-bottom:2px; }
+  .acuan-col-avg{ font-size:12px; color:var(--ink-soft); }
+  .acuan-col-value{ font-size:20px; font-weight:700; color:var(--gold-dark); font-variant-numeric:tabular-nums; }
   .item-group-title{
     font-size:12px; text-transform:uppercase; letter-spacing:.08em;
     color:var(--gold-dark); margin:16px 0 4px; font-weight:700;
@@ -161,6 +169,7 @@
     <button class="tab-btn active" data-screen="listScreen">Revisi Data</button>
     <button class="tab-btn" data-screen="stockScreen">Set Stock Awal</button>
     <button class="tab-btn" data-screen="riwayatScreen">Riwayat</button>
+    <button class="tab-btn" data-screen="acuanStockScreen">Acuan Stock</button>
   </div>
 </header>
 
@@ -258,6 +267,26 @@
     <p class="status" id="riwayatStatusMsg"></p>
   </section>
 
+  <!-- ===================== ACUAN STOCK ===================== -->
+  <section class="screen" id="acuanStockScreen">
+    <div class="card">
+      <label for="acuanRider">Pilih Rider</label>
+      <select id="acuanRider"><option value="">— Pilih Rider —</option></select>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:14px; font-size:13.5px; cursor:pointer;">
+        <input type="checkbox" id="acuanTampilkanSemua" style="width:auto;">
+        Tampilkan menu Botol juga (default: Cup saja)
+      </label>
+      <p style="font-size:11.5px; color:var(--ink-soft); margin:10px 0 0;" id="acuanPeriodeNote"></p>
+    </div>
+    <div id="acuanStockCard"></div>
+    <p class="status" id="acuanStockStatusMsg"></p>
+    <p style="font-size:11px; color:var(--ink-soft); text-align:center; margin-top:16px;">
+      Acuan = rata-rata Terjual (hari kerja saja, 4 pekan terakhir) × 1.2.
+      Cup dibulatkan ke atas (kelipatan 1). Botol dibulatkan ke kelipatan 8
+      terdekat (sisa 1-3 turun, sisa 4-7 naik).
+    </p>
+  </section>
+
 </main>
 
 <script>
@@ -265,7 +294,7 @@
 // PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
 // (satu Google Sheet, satu backend, dua aplikasi).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
-const APP_VERSION = "2026-08-09-urutan-stok-v1"; // ganti tiap update, buat cek device mana yg belum update
+const APP_VERSION = "2026-08-20-acuanstock-v2"; // ganti tiap update, buat cek device mana yg belum update
 document.getElementById("appVersionLabel").textContent = APP_VERSION;
 // ==================================================
 
@@ -299,6 +328,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     showScreen(btn.dataset.screen);
     if(btn.dataset.screen === "stockScreen") loadStockScreen();
     if(btn.dataset.screen === "riwayatScreen") loadRiwayat();
+    if(btn.dataset.screen === "acuanStockScreen") loadAcuanStock();
   });
 });
 
@@ -375,6 +405,7 @@ async function loadFilterOptions(){
     $("filterRider").innerHTML = '<option value="">Semua Rider</option>' + riderOptions;
     $("stockRider").innerHTML = '<option value="">— Pilih Rider —</option>' + riderOptions;
     $("riwayatRider").innerHTML = '<option value="">Semua Rider</option>' + riderOptions;
+    $("acuanRider").innerHTML = '<option value="">— Pilih Rider —</option>' + riderOptions;
     if(!$("stockTanggal").value) $("stockTanggal").value = new Date().toLocaleDateString("en-CA");
   }catch(e){
     $("listStatusMsg").textContent = "Gagal memuat data awal: " + e.message;
@@ -485,6 +516,100 @@ async function loadStockScreen(){
 }
 
 // ---------- Riwayat ----------
+// ---------- Acuan Stock ----------
+async function loadAcuanStock(){
+  const rider = $("acuanRider").value;
+  const card = $("acuanStockCard");
+  if(!rider){
+    card.innerHTML = "";
+    $("acuanPeriodeNote").textContent = "";
+    $("acuanStockStatusMsg").textContent = "";
+    return;
+  }
+  card.innerHTML = '<p class="empty-note">Memuat...</p>';
+  $("acuanStockStatusMsg").textContent = "";
+  try{
+    const data = await apiGet({ action: "getAcuanStock", rider });
+    const startStr = new Date(data.startDate + "T00:00:00").toLocaleDateString("id-ID", { day:"numeric", month:"short" });
+    const endStr = new Date(data.endDate + "T00:00:00").toLocaleDateString("id-ID", { day:"numeric", month:"short", year:"numeric" });
+    $("acuanPeriodeNote").textContent =
+      `Periode: ${startStr} – ${endStr} · ${data.jumlahHariWeekday} hari kerja weekday, ${data.jumlahHariWeekend} hari kerja weekend`;
+    renderAcuanStock(data.items);
+  }catch(e){
+    card.innerHTML = "";
+    $("acuanStockStatusMsg").textContent = "Gagal memuat: " + e.message;
+    $("acuanStockStatusMsg").className = "status err";
+  }
+}
+$("acuanRider").addEventListener("change", loadAcuanStock);
+$("acuanTampilkanSemua").addEventListener("change", applyAcuanFilter);
+
+let acuanStockCache = []; // simpan hasil terakhir dari server, dipakai ulang saat toggle filter tanpa fetch lagi
+function renderAcuanStock(items){
+  acuanStockCache = items;
+  applyAcuanFilter();
+}
+function applyAcuanFilter(){
+  const tampilkanSemua = $("acuanTampilkanSemua").checked;
+  const filtered = tampilkanSemua ? acuanStockCache : acuanStockCache.filter(it => it.tipeStock !== "Botol");
+
+  const card = $("acuanStockCard");
+  const groups = groupItemsBySubkategori(filtered.map(it => ({
+    menu: it.menu, kategori: it.kategori, subKategori: it.subKategori
+  })));
+  const byMenu = {};
+  filtered.forEach(it => byMenu[it.menu] = it);
+
+  let html = "";
+  SUBKATEGORI_ORDER.forEach(sub => {
+    const groupItems = groups[sub];
+    if(!groupItems || !groupItems.length) return;
+    html += `<p class="item-group-title">${SUBKATEGORI_LABEL[sub]}</p>`;
+    groupItems.forEach(g => {
+      const it = byMenu[g.menu];
+      html += `
+        <div class="acuan-item" data-menu="${it.menu}">
+          <div class="acuan-item-name">${it.menu}</div>
+          <select class="acuan-tipe-select">
+            <option value="Cup" ${it.tipeStock === "Cup" ? "selected" : ""}>Cup (kelipatan 1)</option>
+            <option value="Botol" ${it.tipeStock === "Botol" ? "selected" : ""}>Botol (kelipatan 8)</option>
+          </select>
+          <div class="acuan-cols">
+            <div>
+              <div class="acuan-col-label">Weekday</div>
+              <div class="acuan-col-avg">Rata-rata: ${it.wdAvg.toFixed(1)}</div>
+              <div class="acuan-col-value">${it.acuanWeekday}</div>
+            </div>
+            <div>
+              <div class="acuan-col-label">Weekend</div>
+              <div class="acuan-col-avg">Rata-rata: ${it.weAvg.toFixed(1)}</div>
+              <div class="acuan-col-value">${it.acuanWeekend}</div>
+            </div>
+          </div>
+        </div>`;
+    });
+  });
+  card.innerHTML = html || (tampilkanSemua
+    ? "<p>Belum ada menu.</p>"
+    : "<p>Tidak ada menu bertipe Cup. Centang \"Tampilkan menu Botol juga\" kalau perlu lihat semuanya.</p>");
+
+  card.querySelectorAll(".acuan-item").forEach(row => {
+    const menu = row.dataset.menu;
+    row.querySelector(".acuan-tipe-select").addEventListener("change", async (e) => {
+      const tipeStock = e.target.value;
+      e.target.disabled = true;
+      try{
+        await apiPost({ action: "updateTipeStock", menu, tipeStock });
+        loadAcuanStock(); // muat ulang supaya angka acuan ikut update sesuai kelipatan baru
+      }catch(err){
+        $("acuanStockStatusMsg").textContent = "Gagal menyimpan: " + err.message;
+        $("acuanStockStatusMsg").className = "status err";
+        e.target.disabled = false;
+      }
+    });
+  });
+}
+
 async function loadRiwayat(){
   const container = $("riwayatList");
   container.innerHTML = '<p class="empty-note">Memuat...</p>';
