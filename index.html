@@ -280,7 +280,12 @@
       Acuan = rata-rata Terjual (hari kerja saja, 4 pekan terakhir) × 1.2,
       dibulatkan ke atas. Untuk Minuman, angka cup dikonversi jadi perkiraan
       botol di sampingnya (1 botol = 8 cup, sisa 1-3 turun & sisa 4-7 naik)
-      — cuma info tambahan, bukan angka yang disimpan.
+      — cuma info tambahan, bukan angka yang disimpan. Badge merah
+      "▲ +1 habis 2 hari" = 2 hari kerja terakhir (weekday/weekend ybs)
+      Stock Awal habis total (Sisa 0, bukan krn memang tidak di-stock) —
+      acuan otomatis naik 1. Badge biru "▼ -1 sisa banyak 2 hari" = 2 hari
+      kerja terakhir sisa-nya ≥ setengah Stock Awal (kurang dari separuh
+      laku) — acuan otomatis turun 1 (minimal tetap 1, tidak sampai 0).
     </p>
   </section>
 
@@ -291,7 +296,7 @@
 // PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
 // (satu Google Sheet, satu backend, dua aplikasi).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
-const APP_VERSION = "2026-08-21-acuanstock-v4"; // ganti tiap update, buat cek device mana yg belum update
+const APP_VERSION = "2026-08-21-acuanstock-v6"; // ganti tiap update, buat cek device mana yg belum update
 document.getElementById("appVersionLabel").textContent = APP_VERSION;
 // ==================================================
 
@@ -557,6 +562,10 @@ function renderAcuanStock(items){
       const it = byMenu[g.menu];
       const botolWd = it.botolWeekday !== null ? ` <span style="font-weight:600; font-size:15px; color:var(--ink-soft);">(≈ ${it.botolWeekday} botol)</span>` : "";
       const botolWe = it.botolWeekend !== null ? ` <span style="font-weight:600; font-size:15px; color:var(--ink-soft);">(≈ ${it.botolWeekend} botol)</span>` : "";
+      const bumpBadge = '<span style="display:inline-block; margin-left:6px; font-size:11px; font-weight:700; color:#fff; background:var(--danger); padding:1px 7px; border-radius:8px; vertical-align:middle;">▲ +1 habis 2 hari</span>';
+      const turunBadge = '<span style="display:inline-block; margin-left:6px; font-size:11px; font-weight:700; color:#fff; background:#2E6E8E; padding:1px 7px; border-radius:8px; vertical-align:middle;">▼ -1 sisa banyak 2 hari</span>';
+      const bumpWd = it.bumpWeekday ? bumpBadge : (it.turunWeekday ? turunBadge : "");
+      const bumpWe = it.bumpWeekend ? bumpBadge : (it.turunWeekend ? turunBadge : "");
       html += `
         <div class="acuan-item" data-menu="${it.menu}">
           <div class="acuan-item-name">${it.menu}</div>
@@ -564,12 +573,12 @@ function renderAcuanStock(items){
             <div>
               <div class="acuan-col-label">Weekday</div>
               <div class="acuan-col-avg">Rata-rata: ${it.wdAvg.toFixed(1)}</div>
-              <div class="acuan-col-value">${it.acuanWeekday}${botolWd}</div>
+              <div class="acuan-col-value">${it.acuanWeekday}${botolWd}${bumpWd}</div>
             </div>
             <div>
               <div class="acuan-col-label">Weekend</div>
               <div class="acuan-col-avg">Rata-rata: ${it.weAvg.toFixed(1)}</div>
-              <div class="acuan-col-value">${it.acuanWeekend}${botolWe}</div>
+              <div class="acuan-col-value">${it.acuanWeekend}${botolWe}${bumpWe}</div>
             </div>
           </div>
         </div>`;
