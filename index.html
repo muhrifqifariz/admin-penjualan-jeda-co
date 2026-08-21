@@ -272,18 +272,15 @@
     <div class="card">
       <label for="acuanRider">Pilih Rider</label>
       <select id="acuanRider"><option value="">— Pilih Rider —</option></select>
-      <label style="display:flex; align-items:center; gap:8px; margin-top:14px; font-size:13.5px; cursor:pointer;">
-        <input type="checkbox" id="acuanTampilkanSemua" style="width:auto;">
-        Tampilkan menu Botol juga (default: Cup saja)
-      </label>
       <p style="font-size:11.5px; color:var(--ink-soft); margin:10px 0 0;" id="acuanPeriodeNote"></p>
     </div>
     <div id="acuanStockCard"></div>
     <p class="status" id="acuanStockStatusMsg"></p>
     <p style="font-size:11px; color:var(--ink-soft); text-align:center; margin-top:16px;">
-      Acuan = rata-rata Terjual (hari kerja saja, 4 pekan terakhir) × 1.2.
-      Cup dibulatkan ke atas (kelipatan 1). Botol dibulatkan ke kelipatan 8
-      terdekat (sisa 1-3 turun, sisa 4-7 naik).
+      Acuan = rata-rata Terjual (hari kerja saja, 4 pekan terakhir) × 1.2,
+      dibulatkan ke atas. Untuk Minuman, angka cup dikonversi jadi perkiraan
+      botol di sampingnya (1 botol = 8 cup, sisa 1-3 turun & sisa 4-7 naik)
+      — cuma info tambahan, bukan angka yang disimpan.
     </p>
   </section>
 
@@ -294,7 +291,7 @@
 // PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
 // (satu Google Sheet, satu backend, dua aplikasi).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
-const APP_VERSION = "2026-08-20-acuanstock-v2"; // ganti tiap update, buat cek device mana yg belum update
+const APP_VERSION = "2026-08-21-acuanstock-v3"; // ganti tiap update, buat cek device mana yg belum update
 document.getElementById("appVersionLabel").textContent = APP_VERSION;
 // ==================================================
 
@@ -542,23 +539,14 @@ async function loadAcuanStock(){
   }
 }
 $("acuanRider").addEventListener("change", loadAcuanStock);
-$("acuanTampilkanSemua").addEventListener("change", applyAcuanFilter);
 
-let acuanStockCache = []; // simpan hasil terakhir dari server, dipakai ulang saat toggle filter tanpa fetch lagi
 function renderAcuanStock(items){
-  acuanStockCache = items;
-  applyAcuanFilter();
-}
-function applyAcuanFilter(){
-  const tampilkanSemua = $("acuanTampilkanSemua").checked;
-  const filtered = tampilkanSemua ? acuanStockCache : acuanStockCache.filter(it => it.tipeStock !== "Botol");
-
   const card = $("acuanStockCard");
-  const groups = groupItemsBySubkategori(filtered.map(it => ({
+  const groups = groupItemsBySubkategori(items.map(it => ({
     menu: it.menu, kategori: it.kategori, subKategori: it.subKategori
   })));
   const byMenu = {};
-  filtered.forEach(it => byMenu[it.menu] = it);
+  items.forEach(it => byMenu[it.menu] = it);
 
   let html = "";
   SUBKATEGORI_ORDER.forEach(sub => {
@@ -567,47 +555,27 @@ function applyAcuanFilter(){
     html += `<p class="item-group-title">${SUBKATEGORI_LABEL[sub]}</p>`;
     groupItems.forEach(g => {
       const it = byMenu[g.menu];
+      const botolWd = it.botolWeekday !== null ? ` <span style="font-weight:400; font-size:12px; color:var(--ink-soft);">(≈ ${it.botolWeekday} botol)</span>` : "";
+      const botolWe = it.botolWeekend !== null ? ` <span style="font-weight:400; font-size:12px; color:var(--ink-soft);">(≈ ${it.botolWeekend} botol)</span>` : "";
       html += `
         <div class="acuan-item" data-menu="${it.menu}">
           <div class="acuan-item-name">${it.menu}</div>
-          <select class="acuan-tipe-select">
-            <option value="Cup" ${it.tipeStock === "Cup" ? "selected" : ""}>Cup (kelipatan 1)</option>
-            <option value="Botol" ${it.tipeStock === "Botol" ? "selected" : ""}>Botol (kelipatan 8)</option>
-          </select>
           <div class="acuan-cols">
             <div>
               <div class="acuan-col-label">Weekday</div>
               <div class="acuan-col-avg">Rata-rata: ${it.wdAvg.toFixed(1)}</div>
-              <div class="acuan-col-value">${it.acuanWeekday}</div>
+              <div class="acuan-col-value">${it.acuanWeekday}${botolWd}</div>
             </div>
             <div>
               <div class="acuan-col-label">Weekend</div>
               <div class="acuan-col-avg">Rata-rata: ${it.weAvg.toFixed(1)}</div>
-              <div class="acuan-col-value">${it.acuanWeekend}</div>
+              <div class="acuan-col-value">${it.acuanWeekend}${botolWe}</div>
             </div>
           </div>
         </div>`;
     });
   });
-  card.innerHTML = html || (tampilkanSemua
-    ? "<p>Belum ada menu.</p>"
-    : "<p>Tidak ada menu bertipe Cup. Centang \"Tampilkan menu Botol juga\" kalau perlu lihat semuanya.</p>");
-
-  card.querySelectorAll(".acuan-item").forEach(row => {
-    const menu = row.dataset.menu;
-    row.querySelector(".acuan-tipe-select").addEventListener("change", async (e) => {
-      const tipeStock = e.target.value;
-      e.target.disabled = true;
-      try{
-        await apiPost({ action: "updateTipeStock", menu, tipeStock });
-        loadAcuanStock(); // muat ulang supaya angka acuan ikut update sesuai kelipatan baru
-      }catch(err){
-        $("acuanStockStatusMsg").textContent = "Gagal menyimpan: " + err.message;
-        $("acuanStockStatusMsg").className = "status err";
-        e.target.disabled = false;
-      }
-    });
-  });
+  card.innerHTML = html || "<p>Belum ada menu Cup/Cookies.</p>";
 }
 
 async function loadRiwayat(){
