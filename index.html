@@ -166,10 +166,10 @@
     </div>
   </div>
   <div class="tabs" id="adminTabs" style="display:none;">
+    <button class="tab-btn" data-screen="acuanStockScreen">Acuan Stock</button>
     <button class="tab-btn active" data-screen="listScreen">Revisi Data</button>
     <button class="tab-btn" data-screen="stockScreen">Set Stock Awal</button>
     <button class="tab-btn" data-screen="riwayatScreen">Riwayat</button>
-    <button class="tab-btn" data-screen="acuanStockScreen">Acuan Stock</button>
   </div>
 </header>
 
@@ -291,7 +291,7 @@
 // PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
 // (satu Google Sheet, satu backend, dua aplikasi).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
-const APP_VERSION = "2026-08-21-acuanstock-v3"; // ganti tiap update, buat cek device mana yg belum update
+const APP_VERSION = "2026-08-21-acuanstock-v4"; // ganti tiap update, buat cek device mana yg belum update
 document.getElementById("appVersionLabel").textContent = APP_VERSION;
 // ==================================================
 
@@ -555,8 +555,8 @@ function renderAcuanStock(items){
     html += `<p class="item-group-title">${SUBKATEGORI_LABEL[sub]}</p>`;
     groupItems.forEach(g => {
       const it = byMenu[g.menu];
-      const botolWd = it.botolWeekday !== null ? ` <span style="font-weight:400; font-size:12px; color:var(--ink-soft);">(≈ ${it.botolWeekday} botol)</span>` : "";
-      const botolWe = it.botolWeekend !== null ? ` <span style="font-weight:400; font-size:12px; color:var(--ink-soft);">(≈ ${it.botolWeekend} botol)</span>` : "";
+      const botolWd = it.botolWeekday !== null ? ` <span style="font-weight:600; font-size:15px; color:var(--ink-soft);">(≈ ${it.botolWeekday} botol)</span>` : "";
+      const botolWe = it.botolWeekend !== null ? ` <span style="font-weight:600; font-size:15px; color:var(--ink-soft);">(≈ ${it.botolWeekend} botol)</span>` : "";
       html += `
         <div class="acuan-item" data-menu="${it.menu}">
           <div class="acuan-item-name">${it.menu}</div>
