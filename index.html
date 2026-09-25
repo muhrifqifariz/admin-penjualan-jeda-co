@@ -302,7 +302,7 @@
 // PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
 // (satu Google Sheet, satu backend, dua aplikasi).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
-const APP_VERSION = "2026-08-22-pin-summary-v1"; // ganti tiap update, buat cek device mana yg belum update
+const APP_VERSION = "2026-09-17-perf-v4"; // ganti tiap update, buat cek device mana yg belum update
 document.getElementById("appVersionLabel").textContent = APP_VERSION;
 // ==================================================
 
@@ -895,6 +895,14 @@ function currentTanggalValue(){ return _currentTanggalISO; }
 if("serviceWorker" in navigator){
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
+  // Auto-reload SEKALI saat service worker baru ambil alih (abis update) --
+  // sebelumnya user harus refresh manual dulu baru dapet versi terbaru.
+  let swSudahReload = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if(swSudahReload) return;
+    swSudahReload = true;
+    window.location.reload();
   });
 }
 </script>
