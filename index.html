@@ -285,7 +285,7 @@
     <p style="font-size:11px; color:var(--ink-soft); text-align:center; margin-top:16px;">
       Acuan = rata-rata Terjual (hari kerja saja, 4 pekan terakhir) × 1.2,
       dibulatkan ke atas. Untuk Minuman, angka cup dikonversi jadi perkiraan
-      botol di sampingnya (1 botol = 8 cup, sisa 1-3 turun & sisa 4-7 naik)
+      botol 1 liter di sampingnya (1 botol = <span id="acuanCupPerBotol">8</span> cup, sesuai Konversi Ukuran yang berlaku hari ini, dibulatkan ke botol terdekat)
       — cuma info tambahan, bukan angka yang disimpan. Badge merah
       "▲ +1 habis 2 hari" = 2 hari kerja terakhir (weekday/weekend ybs)
       Stock Awal habis total (Sisa 0, bukan krn memang tidak di-stock) —
@@ -302,7 +302,7 @@
 // PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
 // (satu Google Sheet, satu backend, dua aplikasi).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
-const APP_VERSION = "2026-09-17-perf-v4"; // ganti tiap update, buat cek device mana yg belum update
+const APP_VERSION = "2026-11-02-konversi-v5"; // ganti tiap update, buat cek device mana yg belum update
 document.getElementById("appVersionLabel").textContent = APP_VERSION;
 // ==================================================
 
@@ -558,6 +558,7 @@ async function loadAcuanStock(){
     const endStr = new Date(data.endDate + "T00:00:00").toLocaleDateString("id-ID", { day:"numeric", month:"short", year:"numeric" });
     $("acuanPeriodeNote").textContent =
       `Periode: ${startStr} – ${endStr} · ${data.jumlahHariWeekday} hari kerja weekday, ${data.jumlahHariWeekend} hari kerja weekend`;
+    if(data.cupPerBotol) $("acuanCupPerBotol").textContent = data.cupPerBotol.toLocaleString("id-ID");
     renderAcuanStock(data.items);
   }catch(e){
     card.innerHTML = "";
