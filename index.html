@@ -146,6 +146,9 @@
     color:var(--ink-soft); margin-top:8px;
   }
   .edit-item-calc .val{ font-variant-numeric:tabular-nums; font-weight:600; color:var(--ink); }
+  .pg-row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px; }
+  .pg-row2 label{ font-size:12px; }
+  .pg-row2 input{ background:#FFFBEB; }
 
   .summary-row{ display:flex; justify-content:space-between; font-size:14px; padding:6px 0; }
   .summary-row .rp{ font-variant-numeric:tabular-nums; font-family:Consolas, monospace; }
@@ -220,11 +223,16 @@
       <input type="text" id="editModal" inputmode="numeric" placeholder="Rp0">
       <label for="editQris">QRIS</label>
       <input type="text" id="editQris" inputmode="numeric" placeholder="Rp0">
+      <label for="editEsBatu">Belanja Es Batu</label>
+      <input type="text" id="editEsBatu" inputmode="numeric" placeholder="Rp0">
+      <p style="font-size:11.5px; color:#92400E; background:#FEF3C7; border-radius:10px; padding:7px 10px; margin:4px 0 0;">Dipotong dari Setoran Cash &amp; otomatis tercatat di Procurement (Es Batu). Rider wajib kirim foto es batu via WhatsApp.</p>
 
       <div class="summary-row"><span>Jumlah Cup Minuman</span><span class="rp" id="editJumlahCup">0</span></div>
       <div class="summary-row"><span>Jumlah Cookies</span><span class="rp" id="editJumlahCookies">0</span></div>
+      <div class="summary-row"><span>Pecah · Gratis (loyalty) <small>tidak dibayar; gratis tetap dapat komisi</small></span><span class="rp" id="editPecahGratis" style="white-space:nowrap">0 · 0</span></div>
       <div class="summary-row"><span>Total Minuman</span><span class="rp" id="editRpMinuman">Rp0</span></div>
       <div class="summary-row"><span>Total Cookies</span><span class="rp" id="editRpCookies">Rp0</span></div>
+      <div class="summary-row" id="editEsBatuRow"><span>Belanja Es Batu</span><span class="rp" id="editEsBatuVal">Rp0</span></div>
       <div class="summary-row"><span>Estimasi Komisi + Insentif</span><span class="rp" id="editKomisiOps">Rp0</span></div>
       <div class="summary-row total"><span>Setoran Cash</span><span class="rp" id="editSetoranCash">Rp0</span></div>
       <p id="editAmbilKomisiNote" style="font-size:11.5px; color:var(--ink-soft); text-align:center; margin:8px 0 0;"></p>
@@ -302,7 +310,7 @@
 // PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
 // (satu Google Sheet, satu backend, dua aplikasi).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
-const APP_VERSION = "2026-11-02-konversi-v5"; // ganti tiap update, buat cek device mana yg belum update
+const APP_VERSION = "2026-11-10-esbatu-v8"; // ganti tiap update, buat cek device mana yg belum update
 document.getElementById("appVersionLabel").textContent = APP_VERSION;
 // ==================================================
 
@@ -642,7 +650,7 @@ function renderRiwayat(list){
     const waktuStr = new Date(r.waktu).toLocaleString("id-ID", {
       day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"
     });
-    const fieldLabel = r.field === "terjual" ? "Terjual" : "Stock Awal";
+    const fieldLabel = ({ terjual: "Terjual", stockAwal: "Stock Awal", pecah: "Pecah", gratis: "Gratis (loyalty)" })[r.field] || r.field;
     return `
       <div class="riwayat-item">
         <div class="top">
@@ -720,6 +728,7 @@ async function openSubmission(id){
 
     $("editModal").value = data.modal ? "Rp" + Number(data.modal).toLocaleString("id-ID") : "";
     $("editQris").value = data.qris ? "Rp" + Number(data.qris).toLocaleString("id-ID") : "";
+    $("editEsBatu").value = data.esBatu ? "Rp" + Number(data.esBatu).toLocaleString("id-ID") : "";
 
     const itemsCard = $("editItemsCard");
     const groups = groupItemsBySubkategori(data.items);
@@ -745,8 +754,18 @@ async function openSubmission(id){
                 <input type="number" class="terjual" value="${item.terjual}" min="0">
               </div>
             </div>
+            <div class="pg-row2">
+              <div>
+                <label style="margin:0 0 4px;">Pecah (${item.satuan})</label>
+                <input type="number" class="pecah" value="${item.pecah || 0}" min="0">
+              </div>
+              <div>
+                <label style="margin:0 0 4px;">Gratis loyalty (${item.satuan})</label>
+                <input type="number" class="gratis" value="${item.gratis || 0}" min="0">
+              </div>
+            </div>
             <div class="edit-item-calc">
-              <span>Sisa: <span class="val sisaVal">${item.stockAwal - item.terjual}</span> ${item.satuan}</span>
+              <span>Sisa: <span class="val sisaVal">${item.stockAwal - item.terjual - (item.pecah || 0) - (item.gratis || 0)}</span> ${item.satuan}</span>
               <span>Total: <span class="val totalVal">${formatRupiah(item.terjual * item.harga)}</span></span>
             </div>
           </div>`;
@@ -760,15 +779,18 @@ async function openSubmission(id){
       const sisaVal = row.querySelector(".sisaVal");
       const totalVal = row.querySelector(".totalVal");
       const harga = parseFloat(row.dataset.harga) || 0;
+      const pecahInput = row.querySelector(".pecah"), gratisInput = row.querySelector(".gratis");
       function recalc(){
         const s = parseFloat(stockInput.value) || 0;
         const t = parseFloat(terjualInput.value) || 0;
-        sisaVal.textContent = s - t;
+        sisaVal.textContent = s - t - (parseFloat(pecahInput.value) || 0) - (parseFloat(gratisInput.value) || 0);
         totalVal.textContent = formatRupiah(t * harga);
         updateEditSummary();
       }
       stockInput.addEventListener("input", recalc);
       terjualInput.addEventListener("input", recalc);
+      pecahInput.addEventListener("input", recalc);
+      gratisInput.addEventListener("input", recalc);
     });
 
     updateEditSummary();
@@ -788,9 +810,13 @@ function hitungKomisi(unit, aturan){
 }
 
 function updateEditSummary(){
-  let rpMinuman = 0, rpCookies = 0, cupMinuman = 0, pcsCookies = 0;
+  let rpMinuman = 0, rpCookies = 0, cupMinuman = 0, pcsCookies = 0, totPecah = 0, totGratis = 0, cupGratis = 0, pcsGratis = 0;
   document.querySelectorAll("#editItemsCard .edit-item").forEach(row => {
     const t = parseFloat(row.querySelector(".terjual").value) || 0;
+    const g = parseFloat((row.querySelector(".gratis") || {}).value) || 0;
+    totPecah += parseFloat((row.querySelector(".pecah") || {}).value) || 0;
+    totGratis += g;
+    if(row.dataset.kategori === "Minuman") cupGratis += g * (parseFloat(row.dataset.konversi) || 1); else pcsGratis += g;
     const harga = parseFloat(row.dataset.harga) || 0;
     const konversi = parseFloat(row.dataset.konversi) || 1;
     const rp = t * harga;
@@ -798,19 +824,23 @@ function updateEditSummary(){
     else { rpCookies += rp; pcsCookies += t; }
   });
   const grandTotal = rpMinuman + rpCookies;
-  const komisi = hitungKomisi(cupMinuman, aturanData["Minuman"]) + hitungKomisi(pcsCookies, aturanData["Cookies"]);
+  // Gratis loyalty ikut dihitung komisi (pecah tidak)
+  const komisi = hitungKomisi(cupMinuman + cupGratis, aturanData["Minuman"]) + hitungKomisi(pcsCookies + pcsGratis, aturanData["Cookies"]);
   const komisiPlusOps = komisi + currentOperasionalValue;
   const modal = parseRupiahInput($("editModal"));
   const qris = parseRupiahInput($("editQris"));
   const komisiDikurangi = currentAmbilKomisi === "Harian" ? komisi : 0;
-  const setoranCash = grandTotal + modal - qris - currentOperasionalValue - komisiDikurangi;
+  const esBatu = parseRupiahInput($("editEsBatu"));
+  const setoranCash = grandTotal + modal - qris - currentOperasionalValue - komisiDikurangi - esBatu;
 
   $("editJumlahCup").textContent = cupMinuman;
   $("editJumlahCookies").textContent = pcsCookies;
+  $("editPecahGratis").textContent = totPecah + " · " + totGratis;
   $("editRpMinuman").textContent = formatRupiah(rpMinuman);
   $("editRpCookies").textContent = formatRupiah(rpCookies);
   $("editKomisiOps").textContent = formatRupiah(komisiPlusOps);
   $("editSetoranCash").textContent = formatRupiah(setoranCash);
+  $("editEsBatuVal").textContent = formatRupiah(esBatu);
   const noteEl = $("editAmbilKomisiNote");
   if(noteEl){
     noteEl.textContent = "Ambil Komisi: " + currentAmbilKomisi + (
@@ -820,13 +850,15 @@ function updateEditSummary(){
     );
   }
 
-  return { rpMinuman, rpCookies, grandTotal, komisi, komisiPlusOps, setoranCash, modal, qris, cupMinuman, pcsCookies };
+  return { rpMinuman, rpCookies, grandTotal, komisi, komisiPlusOps, setoranCash, modal, qris, esBatu, cupMinuman, pcsCookies };
 }
 
 attachRupiahInput($("editModal"));
 attachRupiahInput($("editQris"));
 $("editModal").addEventListener("input", updateEditSummary);
 $("editQris").addEventListener("input", updateEditSummary);
+attachRupiahInput($("editEsBatu"));
+$("editEsBatu").addEventListener("input", updateEditSummary);
 
 $("backToListBtn").addEventListener("click", () => {
   showScreen("listScreen");
@@ -838,12 +870,14 @@ $("saveSubmissionBtn").addEventListener("click", async () => {
   document.querySelectorAll("#editItemsCard .edit-item").forEach(row => {
     const s = parseFloat(row.querySelector(".stockAwal").value) || 0;
     const t = parseFloat(row.querySelector(".terjual").value) || 0;
+    const pc = Math.max(0, parseFloat(row.querySelector(".pecah").value) || 0);
+    const gr = Math.max(0, parseFloat(row.querySelector(".gratis").value) || 0);
     items.push({
       menu: row.dataset.menu, kategori: row.dataset.kategori,
       subKategori: row.dataset.sub, satuan: row.dataset.satuan,
       konversi: parseFloat(row.dataset.konversi) || 1,
       harga: parseFloat(row.dataset.harga) || 0,
-      stockAwal: s, terjual: t
+      stockAwal: s, terjual: t, pecah: pc, gratis: gr
     });
   });
   const summary = updateEditSummary();
@@ -857,7 +891,7 @@ $("saveSubmissionBtn").addEventListener("click", async () => {
       action: "updateSubmission", pin: getPin(), submissionId: currentSubmissionId,
       rider, tanggal: currentTanggalValue(), items,
       totalPenjualan: summary.grandTotal, totalKomisi: summary.komisi,
-      modal: summary.modal, qris: summary.qris,
+      modal: summary.modal, qris: summary.qris, esBatu: summary.esBatu,
       operasional: currentOperasionalValue, setoranCash: summary.setoranCash
     });
     $("editStatusMsg").textContent = "Perubahan tersimpan ✓";
