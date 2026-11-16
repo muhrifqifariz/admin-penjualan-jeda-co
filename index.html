@@ -310,7 +310,7 @@
 // PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
 // (satu Google Sheet, satu backend, dua aplikasi).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
-const APP_VERSION = "2026-11-10-esbatu-v8"; // ganti tiap update, buat cek device mana yg belum update
+const APP_VERSION = "2026-11-16-cepat-aktif-v9"; // ganti tiap update, buat cek device mana yg belum update
 document.getElementById("appVersionLabel").textContent = APP_VERSION;
 // ==================================================
 
@@ -401,14 +401,18 @@ $("pinSubmitBtn").addEventListener("click", async () => {
 async function afterLogin(){
   $("adminTabs").style.display = "flex";
   showScreen("listScreen");
-  await loadFilterOptions();
-  await loadSubmissions();
+  // Paralel (dulu berurutan): data awal & daftar setoran dimuat bersamaan.
+  await Promise.all([loadFilterOptions(), loadSubmissions()]);
 }
 
 // ---------- Filter options (rider, aturan, operasional) ----------
-async function loadFilterOptions(){
-  try{
-    const data = await apiGet({});
+// Data awal (menu/rider/aturan) mulai diambil SAAT HALAMAN DIBUKA -- sambil
+// owner mengetik PIN -- lalu disimpan di localStorage supaya pembukaan
+// berikutnya langsung tampil (diperbarui di belakang layar).
+const INIT_CACHE_KEY = "jeda_admin_init_v1";
+let initPromise = apiGet({}).then(d => { try{ localStorage.setItem(INIT_CACHE_KEY, JSON.stringify(d)); }catch(e){} return d; });
+initPromise.catch(() => {});
+function terapkanDataAwal(data){
     aturanData = data.aturan || {};
     operasionalValue = data.operasional || 0;
     menuData = data.menu || [];
@@ -418,9 +422,27 @@ async function loadFilterOptions(){
     $("riwayatRider").innerHTML = '<option value="">Semua Rider</option>' + riderOptions;
     $("acuanRider").innerHTML = '<option value="">— Pilih Rider —</option>' + riderOptions;
     if(!$("stockTanggal").value) $("stockTanggal").value = new Date().toLocaleDateString("en-CA");
+}
+async function loadFilterOptions(){
+  let adaCache = false;
+  try{
+    const c = JSON.parse(localStorage.getItem(INIT_CACHE_KEY) || "null");
+    if(c && c.status === "ok"){ terapkanDataAwal(c); adaCache = true; }
+  }catch(e){}
+  try{
+    const pilihan = ["filterRider", "stockRider", "riwayatRider", "acuanRider"].map(id => $(id).value);
+    const p = initPromise || apiGet({}); initPromise = null; // prefetch dipakai sekali, berikutnya ambil baru
+    const data = await p.catch(() => apiGet({}));
+    try{ localStorage.setItem(INIT_CACHE_KEY, JSON.stringify(data)); }catch(e){}
+    terapkanDataAwal(data);
+    ["filterRider", "stockRider", "riwayatRider", "acuanRider"].forEach((id, i) => {
+      if(pilihan[i] && [...$(id).options].some(o => o.value === pilihan[i])) $(id).value = pilihan[i];
+    });
   }catch(e){
-    $("listStatusMsg").textContent = "Gagal memuat data awal: " + e.message;
-    $("listStatusMsg").className = "status err";
+    if(!adaCache){
+      $("listStatusMsg").textContent = "Gagal memuat data awal: " + e.message;
+      $("listStatusMsg").className = "status err";
+    }
   }
 }
 
@@ -437,15 +459,24 @@ $("clearFilterBtn").addEventListener("click", () => {
 });
 
 // ---------- List submissions ----------
+const LIST_CACHE_KEY = "jeda_admin_list_v1";
 async function loadSubmissions(){
   $("listStatusMsg").textContent = "Memuat...";
   $("listStatusMsg").className = "status";
+  const tanpaFilter = !$("filterRider").value && !$("filterTanggal").value;
+  if(tanpaFilter){
+    try{
+      const c = JSON.parse(localStorage.getItem(LIST_CACHE_KEY) || "null");
+      if(c && c.length){ renderSubmissionList(c); $("listStatusMsg").textContent = "Memperbarui..."; }
+    }catch(e){}
+  }
   try{
     const params = { action: "listSubmissions" };
     if($("filterRider").value) params.rider = $("filterRider").value;
     if($("filterTanggal").value) params.tanggal = $("filterTanggal").value;
     const data = await apiGet(params);
     renderSubmissionList(data.submissions || []);
+    if(tanpaFilter){ try{ localStorage.setItem(LIST_CACHE_KEY, JSON.stringify((data.submissions || []).slice(0, 300))); }catch(e){} }
     $("listStatusMsg").textContent = "";
   }catch(e){
     $("listStatusMsg").textContent = "Gagal memuat: " + e.message;
