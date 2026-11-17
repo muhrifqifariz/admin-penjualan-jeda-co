@@ -34,8 +34,21 @@
   .tab-btn{
     flex:1; padding:9px 4px; border:none; border-radius:10px;
     background:rgba(255,255,255,0.2); color:#fff;
-    font-size:12px; font-weight:600; cursor:pointer;
+    font-size:11.5px; font-weight:600; cursor:pointer; line-height:1.2;
   }
+  .buang-row{ display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; padding:9px 0; border-top:1px solid var(--line); }
+  .buang-row .nm{ font-size:14.5px; font-weight:600; }
+  .buang-row .st{ font-size:11.5px; color:var(--ink-soft); }
+  .buang-step{ display:flex; align-items:center; gap:0; }
+  .buang-step button{ width:38px; height:38px; border:1.5px solid var(--line); background:#fff; font-size:20px; font-weight:700; color:var(--ink); cursor:pointer; }
+  .buang-step button:first-child{ border-radius:10px 0 0 10px; }
+  .buang-step button:last-child{ border-radius:0 10px 10px 0; }
+  .buang-step input{ width:58px; height:38px; border:1.5px solid var(--line); border-left:none; border-right:none; border-radius:0; text-align:center; font-size:16px; font-weight:700; padding:0; margin:0; }
+  .buang-row.isi{ background:#FEF3C7; margin:0 -10px; padding-left:10px; padding-right:10px; border-radius:8px; }
+  .buang-log{ border-top:1px solid var(--line); padding:10px 0; display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center; }
+  .buang-log .a{ font-size:14px; font-weight:600; }
+  .buang-log .b{ font-size:12px; color:var(--ink-soft); }
+  .buang-log button{ border:1.5px solid var(--line); background:#fff; color:#B91C1C; border-radius:8px; padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; }
   .tab-btn.active{ background:var(--paper); color:var(--gold-dark); }
 
   main{ max-width:520px; margin:0 auto; padding:18px 16px 0; }
@@ -172,6 +185,7 @@
     <button class="tab-btn" data-screen="acuanStockScreen">Acuan Stock</button>
     <button class="tab-btn active" data-screen="listScreen">Revisi Data</button>
     <button class="tab-btn" data-screen="stockScreen">Set Stock Awal</button>
+    <button class="tab-btn" data-screen="buangScreen">Dibuang</button>
     <button class="tab-btn" data-screen="riwayatScreen">Riwayat</button>
   </div>
 </header>
@@ -269,6 +283,33 @@
     </p>
   </section>
 
+  <!-- ===================== PRODUK DIBUANG ===================== -->
+  <section class="screen" id="buangScreen">
+    <div class="card">
+      <p class="form-section-title" style="margin-top:0">Catat Produk Dibuang</p>
+      <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 10px;">Untuk produk jadi yang dibuang karena lewat masa kedaluwarsa, rusak, atau gagal produksi. Isi jumlah di produk yang dibuang saja.</p>
+      <label for="buangTanggal">Tanggal dibuang</label>
+      <input type="date" id="buangTanggal">
+      <label for="buangAlasan">Alasan</label>
+      <select id="buangAlasan"><option>Kedaluwarsa</option><option>Rusak / Tumpah</option><option>Gagal Produksi</option><option>Lainnya</option></select>
+      <label for="buangCatatan">Catatan (opsional)</label>
+      <input type="text" id="buangCatatan" placeholder="Contoh: sisa produksi tgl 14, kulkas mati">
+    </div>
+    <div class="card">
+      <input type="text" id="buangCari" placeholder="Cari produk..." style="margin-bottom:6px;">
+      <div id="buangItems"><p class="empty-note">Memuat daftar produk...</p></div>
+    </div>
+    <div class="card" id="buangSummaryCard" style="display:none;">
+      <div class="receipt-line"><span>Total dibuang</span><span class="val" id="buangSummary">0</span></div>
+    </div>
+    <button class="primary" id="saveBuangBtn">Simpan Produk Dibuang</button>
+    <p class="status" id="buangStatusMsg"></p>
+    <div class="card" style="margin-top:18px;">
+      <p class="form-section-title" style="margin-top:0">Catatan Terakhir</p>
+      <div id="buangLogList"><p class="empty-note">Belum ada data.</p></div>
+    </div>
+  </section>
+
   <!-- ===================== RIWAYAT ===================== -->
   <section class="screen" id="riwayatScreen">
     <div class="card">
@@ -310,7 +351,7 @@
 // PENTING: pakai URL Web App Apps Script YANG SAMA dengan Jeda Rider
 // (satu Google Sheet, satu backend, dua aplikasi).
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbys_3TssKzKvycmsQqI8MHg12aqUnFUpuTl8ZACXAyUrK5mnWNsaC1bmbMd1Tt8GhTl/exec";
-const APP_VERSION = "2026-11-16-cepat-aktif-v9"; // ganti tiap update, buat cek device mana yg belum update
+const APP_VERSION = "2026-11-17-dibuang-v10"; // ganti tiap update, buat cek device mana yg belum update
 document.getElementById("appVersionLabel").textContent = APP_VERSION;
 // ==================================================
 
@@ -343,6 +384,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     showScreen(btn.dataset.screen);
     if(btn.dataset.screen === "stockScreen") loadStockScreen();
+    if(btn.dataset.screen === "buangScreen") loadBuangScreen();
     if(btn.dataset.screen === "riwayatScreen") loadRiwayat();
     if(btn.dataset.screen === "acuanStockScreen") loadAcuanStock();
   });
@@ -508,6 +550,81 @@ function renderSubmissionList(list){
     el.addEventListener("click", () => openSubmission(el.dataset.id));
   });
 }
+
+// ---------- Produk Dibuang ----------
+let buangMenu = [], buangQty = {};
+const escB = t => String(t == null ? "" : t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+function renderBuangItems(){
+  const q = $("buangCari").value.trim().toLowerCase();
+  const tampil = buangMenu.filter(m => !q || m.menu.toLowerCase().includes(q) || buangQty[m.menu] > 0);
+  if(!buangMenu.length){ $("buangItems").innerHTML = '<p class="empty-note">Daftar produk belum termuat.</p>'; return; }
+  const grup = {};
+  tampil.forEach(m => { const g = m.kategori === "Cookies" ? "Cookies & Dessert" : (m.subKategori && m.subKategori !== "Cup" ? "Minuman - " + m.subKategori : "Minuman - Cup"); (grup[g] = grup[g] || []).push(m); });
+  $("buangItems").innerHTML = Object.keys(grup).map(g => `<p class="item-group-title">${escB(g)}</p>` + grup[g].map(m => {
+    const v = buangQty[m.menu] || 0;
+    return `<div class="buang-row${v > 0 ? " isi" : ""}" data-menu="${escB(m.menu)}">
+      <div><div class="nm">${escB(m.menu)}</div><div class="st">${escB(m.satuan || "")}</div></div>
+      <div class="buang-step"><button type="button" data-d="-1">−</button><input type="number" inputmode="numeric" min="0" value="${v || ""}" placeholder="0"><button type="button" data-d="1">+</button></div>
+    </div>`; }).join("")).join("") || '<p class="empty-note">Tidak ada produk yang cocok.</p>';
+  $("buangItems").querySelectorAll(".buang-row").forEach(row => {
+    const menu = row.dataset.menu, inp = row.querySelector("input");
+    const set = v => { v = Math.max(0, Math.round(v) || 0); buangQty[menu] = v; inp.value = v || ""; row.classList.toggle("isi", v > 0); updateBuangSummary(); };
+    row.querySelectorAll("button").forEach(b => b.addEventListener("click", () => set((parseFloat(inp.value) || 0) + Number(b.dataset.d))));
+    inp.addEventListener("input", () => { buangQty[menu] = Math.max(0, parseFloat(inp.value) || 0); row.classList.toggle("isi", buangQty[menu] > 0); updateBuangSummary(); });
+  });
+  updateBuangSummary();
+}
+function updateBuangSummary(){
+  const per = {};
+  buangMenu.forEach(m => { const v = buangQty[m.menu] || 0; if(v > 0) per[m.satuan || "pcs"] = (per[m.satuan || "pcs"] || 0) + v; });
+  const teks = Object.keys(per).map(k => per[k] + " " + k).join(" · ");
+  $("buangSummaryCard").style.display = teks ? "" : "none";
+  $("buangSummary").textContent = teks;
+}
+function renderBuangLog(rows){
+  $("buangLogList").innerHTML = rows.length ? rows.slice(0, 60).map(r => {
+    const tgl = new Date(r.tanggal + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+    return `<div class="buang-log"><div><div class="a">${escB(r.menu)} — ${r.qty} ${escB(r.satuan || "")}</div><div class="b">${tgl} · ${escB(r.alasan)}${r.catatan ? " · " + escB(r.catatan) : ""}</div></div><button type="button" data-id="${escB(r.id)}" data-nama="${escB(r.menu)} ${r.qty}">Hapus</button></div>`;
+  }).join("") : '<p class="empty-note">Belum ada produk dibuang yang dicatat.</p>';
+  $("buangLogList").querySelectorAll("button").forEach(b => b.addEventListener("click", async () => {
+    if(!confirm("Hapus catatan dibuang: " + b.dataset.nama + "?")) return;
+    b.disabled = true;
+    try{ await apiPost({ action: "hapusProdukDibuang", pin: getPin(), id: b.dataset.id }); await loadBuangScreen(true); }
+    catch(e){ alert("Gagal menghapus: " + e.message); b.disabled = false; }
+  }));
+}
+async function loadBuangScreen(hanyaLog){
+  if(!$("buangTanggal").value) $("buangTanggal").value = new Date().toLocaleDateString("en-CA");
+  $("buangTanggal").max = new Date().toLocaleDateString("en-CA");
+  try{
+    const data = await apiGet({ action: "getProdukDibuang" });
+    if(!data.alasan) throw new Error("Server belum mendukung fitur ini (Kode.gs perlu diperbarui & di-deploy).");
+    buangMenu = data.menu || [];
+    if(data.alasan && data.alasan.length && !hanyaLog){ const cur = $("buangAlasan").value; $("buangAlasan").innerHTML = data.alasan.map(a => `<option>${escB(a)}</option>`).join(""); if(data.alasan.includes(cur)) $("buangAlasan").value = cur; }
+    if(!hanyaLog) renderBuangItems();
+    renderBuangLog(data.rows || []);
+  }catch(e){
+    if(!hanyaLog) $("buangItems").innerHTML = '<p class="empty-note">Gagal memuat: ' + escB(e.message) + '</p>';
+  }
+}
+$("buangCari").addEventListener("input", renderBuangItems);
+$("saveBuangBtn").addEventListener("click", async () => {
+  const items = buangMenu.filter(m => (buangQty[m.menu] || 0) > 0).map(m => ({ menu: m.menu, kategori: m.kategori, subKategori: m.subKategori, satuan: m.satuan, qty: buangQty[m.menu] }));
+  const msg = $("buangStatusMsg");
+  if(!items.length){ msg.textContent = "Isi jumlah di minimal 1 produk"; msg.className = "status err"; return; }
+  if(!$("buangTanggal").value){ msg.textContent = "Isi tanggal dulu"; msg.className = "status err"; return; }
+  if(!confirm("Catat produk DIBUANG (" + $("buangAlasan").value + ", " + $("buangTanggal").value + "):\n" + items.map(i => "• " + i.menu + ": " + i.qty + " " + (i.satuan || "")).join("\n") + "\n\nLanjut simpan?")) return;
+  $("saveBuangBtn").disabled = true; msg.textContent = "Menyimpan..."; msg.className = "status";
+  try{
+    await apiPost({ action: "simpanProdukDibuang", pin: getPin(), requestId: "bg-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8),
+      tanggal: $("buangTanggal").value, alasan: $("buangAlasan").value, catatan: $("buangCatatan").value.trim(), items });
+    msg.textContent = "Tersimpan ✓ (" + items.length + " produk)"; msg.className = "status ok";
+    buangQty = {}; $("buangCatatan").value = ""; $("buangCari").value = "";
+    renderBuangItems(); loadBuangScreen(true);
+  }catch(e){
+    msg.textContent = "Gagal menyimpan: " + e.message; msg.className = "status err";
+  }finally{ $("saveBuangBtn").disabled = false; }
+});
 
 // ---------- Set Stock Awal ----------
 async function loadStockScreen(){
